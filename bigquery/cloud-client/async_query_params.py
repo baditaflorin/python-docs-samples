@@ -14,12 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Command-line application to perform asynchronous queries in BigQuery.
+"""Command-line app to perform async queries with parameters in BigQuery.
 
 For more information, see the README.md under /bigquery.
 
 Example invocation:
-    $ python async_query_params.py 'romeoandjuliet' 100
+    $ python async_query_params.py --use-named-params 'romeoandjuliet' 100
+    $ python async_query_params.py --use-positional-params 'romeoandjuliet' 100
 """
 
 import argparse
@@ -39,7 +40,23 @@ def wait_for_job(job):
         time.sleep(1)
 
 
-def async_query_params(corpus, min_word_count):
+def print_results(query_results):
+    """Print the query results by requesting a page at a time."""
+    page_token = None
+
+    while True:
+        rows, total_rows, page_token = query_results.fetch_data(
+            max_results=10,
+            page_token=page_token)
+
+        for row in rows:
+            print(row)
+
+        if not page_token:
+            break
+
+
+def async_query_positional_params(corpus, min_word_count):
     client = bigquery.Client()
     query_job = client.run_async_query(
         str(uuid.uuid4()),
@@ -64,8 +81,11 @@ def async_query_params(corpus, min_word_count):
     query_job.use_legacy_sql = False
     query_job.begin()
     wait_for_job(query_job)
-    print('Positional parameter query completed')
+    print_results(query_job.results())
 
+
+def async_query_named_params(corpus, min_word_count):
+    client = bigquery.Client()
     query_job = client.run_async_query(
         str(uuid.uuid4()),
         """SELECT word, word_count
@@ -83,22 +103,14 @@ def async_query_params(corpus, min_word_count):
     query_job.use_legacy_sql = False
     query_job.begin()
     wait_for_job(query_job)
-    print('Named parameter query completed')
+    print_results(query_job.results())
 
-    # Print the query results by requesting a page at a time.
-    query_results = query_job.results()
-    page_token = None
 
-    while True:
-        rows, total_rows, page_token = query_results.fetch_data(
-            max_results=10,
-            page_token=page_token)
-
-        for row in rows:
-            print(row)
-
-        if not page_token:
-            break
+def main(use_named_params=False, corpus='romeoandjuliet', min_word_count=100):
+    if use_named_params:
+        async_query_named_params(corpus, min_word_count)
+    else:
+        async_query_positional_params(corpus, min_word_count)
 
 
 if __name__ == '__main__':
@@ -113,6 +125,15 @@ if __name__ == '__main__':
         help='Minimum count of words to query.',
         type=int)
 
+    params_type_parser = parser.add_mutually_exclusive_group(required=False)
+    params_type_parser.add_argument(
+        '--use-named-params',
+        dest='use_named_params',
+        action='store_true')
+    params_type_parser.add_argument(
+        '--use-positional-params',
+        dest='use_named_params',
+        action='store_false')
+    parser.set_defaults(use_named_params=False)
     args = parser.parse_args()
-
-    async_query_params(args.corpus, args.min_word_count)
+    main(args.use_named_params, args.corpus, args.min_word_count)

@@ -12,14 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from sync_query import sync_query
+from sync_query_params import main
 
 
-def test_sync_query(cloud_config, capsys):
-    sync_query('romeoandjuliet', 100)
-
+def test_main_use_named_params(cloud_config, capsys):
+    main(use_named_params=True, corpus='romeoandjuliet', min_word_count=100)
     out, _ = capsys.readouterr()
+    assert 'love' in out
 
-    assert 'Positional parameter query completed' in out
-    assert 'Named parameter query completed' in out
+
+def test_main_use_positional_params(cloud_config, capsys):
+    main(use_named_params=False, corpus='romeoandjuliet', min_word_count=100)
+    out, _ = capsys.readouterr()
     assert 'love' in out
